@@ -7,14 +7,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        .table-container { overflow-x: auto; }
-        th { position: sticky; top: 0; background-color: #f3f4f6; z-index: 10; }
+        th { position: sticky; top: 0; background-color: #f3f4f6; z-index: 20; }
     </style>
 </head>
 <body class="bg-gray-50 p-6 font-sans">
-    <div class="max-w-[98%] mx-auto bg-white shadow-md rounded-lg overflow-hidden border border-gray-200">
+    <div class="max-w-[98%] mx-auto bg-white shadow-md rounded-lg overflow-hidden border border-gray-200 p-6">
         <!-- Top Navigation Bar -->
-        <div class="p-4 border-b border-gray-200 flex justify-between items-center bg-white">
+        <div class="pb-4 border-b border-gray-200 flex justify-between items-center mb-6">
             <h1 class="text-xl font-bold text-gray-800">📦 Final (Bids Dashboard)</h1>
             <div class="flex items-center space-x-4">
                 <span id="user-status" class="text-sm text-gray-500 font-medium">Not Logged In</span>
@@ -23,7 +22,7 @@
         </div>
 
         <!-- Login Form Section -->
-        <div id="login-section" class="p-12 max-w-sm mx-auto">
+        <div id="login-section" class="py-12 max-w-sm mx-auto">
             <div class="text-center mb-8">
                 <h2 class="text-2xl font-bold text-gray-800">Authentication</h2>
                 <p class="text-sm text-gray-500 mt-2">Restricted to admin@nbt.com only</p>
@@ -36,23 +35,46 @@
             <p id="login-error" class="text-red-500 text-sm mt-4 hidden text-center bg-red-50 p-2 rounded"></p>
         </div>
 
-        <!-- Data Table Section (Hidden by default) -->
+        <!-- Data Dashboard Section (Hidden by default) -->
         <div id="data-section" class="hidden">
-            <!-- Control Bar: Date Filter & Refresh -->
-            <div class="p-4 bg-gray-50 border-b border-gray-200 flex flex-wrap justify-between items-center gap-4">
-                <div class="flex items-center space-x-3">
-                    <label class="text-sm font-medium text-gray-700">Filter by Created Date:</label>
-                    <input type="date" id="date-filter" onchange="filterByDate()" class="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                    <button onclick="clearDateFilter()" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300 transition">Clear</button>
+            <!-- Clickable Summary Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                <div onclick="setStatusFilter('all')" id="card-all" class="bg-blue-50 border-2 border-blue-300 p-4 rounded-lg cursor-pointer hover:bg-blue-100 transition shadow-sm">
+                    <p class="text-xs text-blue-600 font-semibold uppercase">Total Bids (Click to Reset)</p>
+                    <p id="stat-total" class="text-2xl font-bold text-blue-800">0</p>
                 </div>
-                <button onclick="fetchFinalData()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition shadow-sm font-medium">
-                    Refresh Data
-                </button>
+                <div onclick="setStatusFilter('accepted')" id="card-accepted" class="bg-white border border-green-200 p-4 rounded-lg cursor-pointer hover:bg-green-50 transition shadow-sm">
+                    <p class="text-xs text-green-600 font-semibold uppercase">Accepted (Click to Filter)</p>
+                    <p id="stat-accepted" class="text-2xl font-bold text-green-800">0</p>
+                </div>
+                <div onclick="setStatusFilter('submitted')" id="card-submitted" class="bg-white border border-yellow-200 p-4 rounded-lg cursor-pointer hover:bg-yellow-50 transition shadow-sm">
+                    <p class="text-xs text-yellow-600 font-semibold uppercase">Submitted (Click to Filter)</p>
+                    <p id="stat-submitted" class="text-2xl font-bold text-yellow-800">0</p>
+                </div>
             </div>
 
-            <!-- Scrollable Table Container -->
-            <div class="table-container max-h-[750px]">
-                <table class="min-w-full divide-y divide-gray-200 text-left text-sm whitespace-nowrap">
+            <!-- Control Bar: Date Range, Export & Refresh -->
+            <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg mb-4 flex flex-wrap justify-between items-center gap-4">
+                <div class="flex items-center space-x-2 flex-wrap gap-y-2">
+                    <label class="text-sm font-medium text-gray-700">Date Range:</label>
+                    <input type="date" id="start-date" onchange="applyFilters()" class="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <span class="text-xs text-gray-500">to</span>
+                    <input type="date" id="end-date" onchange="applyFilters()" class="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <button onclick="clearDateFilter()" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300 transition">Clear Dates</button>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button onclick="exportCSV()" class="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 transition shadow-sm font-medium">
+                        Export CSV
+                    </button>
+                    <button onclick="fetchFinalData()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition shadow-sm font-medium">
+                        Refresh Data
+                    </button>
+                </div>
+            </div>
+
+            <!-- Fixed-Size Scrollable Table Container -->
+            <div class="h-[520px] overflow-auto border border-gray-200 rounded-lg shadow-inner">
+                <table class="min-w-full divide-y divide-gray-200 text-left text-sm whitespace-nowrap bg-white">
                     <thead>
                         <tr>
                             <th class="px-4 py-3 font-semibold text-gray-600">Job ID</th>
@@ -67,6 +89,7 @@
                             <th class="px-4 py-3 font-semibold text-gray-600">Status</th>
                             <th class="px-4 py-3 font-semibold text-gray-600">PO Number</th>
                             <th class="px-4 py-3 font-semibold text-gray-600">Created At</th>
+                            <th class="px-4 py-3 font-semibold text-gray-600 text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="table-body" class="divide-y divide-gray-200 text-gray-700">
@@ -83,7 +106,8 @@
         
         const mySupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        let globalData = []; // Store raw data for client-side filtering
+        let globalData = []; 
+        let currentStatusFilter = 'all'; // 'all', 'accepted', 'submitted'
 
         checkSession();
 
@@ -154,7 +178,7 @@
             document.getElementById('data-section').classList.remove('hidden');
             document.getElementById('logout-btn').classList.remove('hidden');
             document.getElementById('user-status').textContent = `Logged in: ${email}`;
-            document.getElementById('table-body').innerHTML = `<tr><td colspan="12" class="px-4 py-12 text-center text-blue-500 font-semibold">Fetching latest data...</td></tr>`;
+            document.getElementById('table-body').innerHTML = `<tr><td colspan="13" class="px-4 py-12 text-center text-blue-500 font-semibold">Fetching latest data...</td></tr>`;
         }
 
         async function fetchFinalData() {
@@ -187,11 +211,11 @@
 
                 if (error) throw error;
                 globalData = data || [];
-                renderTable(globalData);
+                applyFilters();
             } catch (err) {
                 console.error('Fetch data failed:', err);
                 document.getElementById('table-body').innerHTML = `
-                    <tr><td colspan="12" class="px-4 py-8 text-center text-red-500 bg-red-50">
+                    <tr><td colspan="13" class="px-4 py-8 text-center text-red-500 bg-red-50">
                         <p class="font-bold">Load Failed</p>
                         <p class="text-sm mt-1">Please check F12 Console for details.</p>
                     </td></tr>
@@ -199,25 +223,130 @@
             }
         }
 
-        function filterByDate() {
-            const selectedDate = document.getElementById('date-filter').value;
-            if (!selectedDate) {
-                renderTable(globalData);
-                return;
-            }
+        function setStatusFilter(status) {
+            currentStatusFilter = status;
+            
+            // Highlight active card
+            document.getElementById('card-all').className = status === 'all' 
+                ? 'bg-blue-50 border-2 border-blue-300 p-4 rounded-lg cursor-pointer hover:bg-blue-100 transition shadow-sm' 
+                : 'bg-white border border-blue-200 p-4 rounded-lg cursor-pointer hover:bg-blue-50 transition shadow-sm';
+            
+            document.getElementById('card-accepted').className = status === 'accepted' 
+                ? 'bg-green-50 border-2 border-green-400 p-4 rounded-lg cursor-pointer hover:bg-green-100 transition shadow-sm' 
+                : 'bg-white border border-green-200 p-4 rounded-lg cursor-pointer hover:bg-green-50 transition shadow-sm';
+            
+            document.getElementById('card-submitted').className = status === 'submitted' 
+                ? 'bg-yellow-50 border-2 border-yellow-400 p-4 rounded-lg cursor-pointer hover:bg-yellow-100 transition shadow-sm' 
+                : 'bg-white border border-yellow-200 p-4 rounded-lg cursor-pointer hover:bg-yellow-50 transition shadow-sm';
 
-            const filtered = globalData.filter(row => {
-                if (!row.created_at) return false;
-                // row.created_at format: "2026-09-30T10:00:00..."
-                return row.created_at.startsWith(selectedDate);
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+
+            let filtered = globalData.filter(row => {
+                // Status filter
+                if (currentStatusFilter !== 'all' && row.status !== currentStatusFilter) {
+                    return false;
+                }
+                // Date range filter
+                if (startDate || endDate) {
+                    if (!row.created_at) return false;
+                    const rowDate = row.created_at.substring(0, 10);
+                    if (startDate && rowDate < startDate) return false;
+                    if (endDate && rowDate > endDate) return false;
+                }
+                return true;
             });
 
+            updateSummaryCards(filtered);
             renderTable(filtered);
         }
 
+        function updateSummaryCards(filteredRows) {
+            const total = globalData.length;
+            const accepted = globalData.filter(r => r.status === 'accepted').length;
+            const submitted = globalData.filter(r => r.status === 'submitted').length;
+
+            document.getElementById('stat-total').textContent = total;
+            document.getElementById('stat-accepted').textContent = accepted;
+            document.getElementById('stat-submitted').textContent = submitted;
+        }
+
         function clearDateFilter() {
-            document.getElementById('date-filter').value = '';
-            renderTable(globalData);
+            document.getElementById('start-date').value = '';
+            document.getElementById('end-date').value = '';
+            applyFilters();
+        }
+
+        async function deleteBid(id) {
+            if (!confirm('Are you sure you want to delete this test record?')) return;
+
+            const { error } = await mySupabase
+                .from('bids')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                alert('Delete failed: ' + error.message);
+            } else {
+                globalData = globalData.filter(row => row.id !== id);
+                applyFilters();
+            }
+        }
+
+        function exportCSV() {
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+
+            let rowsToExport = globalData.filter(row => {
+                if (currentStatusFilter !== 'all' && row.status !== currentStatusFilter) return false;
+                if (startDate || endDate) {
+                    if (!row.created_at) return false;
+                    const rowDate = row.created_at.substring(0, 10);
+                    if (startDate && rowDate < startDate) return false;
+                    if (endDate && rowDate > endDate) return false;
+                }
+                return true;
+            });
+
+            if (rowsToExport.length === 0) {
+                alert('No data to export!');
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Job ID,Company Name,Contact Person,Source Location,Item Desc,Quantity,Delivery Date,Offered Price,Remarks,Status,PO Number,Created At\r\n";
+
+            rowsToExport.forEach(row => {
+                const job = row.jobs || {};
+                const transporter = row.transporters || {};
+                const line = [
+                    row.job_id || '',
+                    `"${(transporter.company_name || '').replace(/"/g, '""')}"`,
+                    `"${(transporter.contact_person || '').replace(/"/g, '""')}"`,
+                    `"${(job.source_loc || '').replace(/"/g, '""')}"`,
+                    `"${(job.item_desc || '').replace(/"/g, '""')}"`,
+                    job.quantity || '',
+                    job.delivery_date || '',
+                    job.offered_price || '',
+                    `"${(job.remarks || '').replace(/"/g, '""')}"`,
+                    row.status || '',
+                    job.po_number || '',
+                    row.created_at || ''
+                ].join(",");
+                csvContent += line + "\r\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `bids_report_${new Date().toISOString().substring(0, 10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         function renderTable(rows) {
@@ -225,7 +354,7 @@
             tbody.innerHTML = '';
 
             if (!rows || rows.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-12 text-center text-gray-500">No matching data found in database.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="13" class="px-4 py-12 text-center text-gray-500">No matching data found.</td></tr>`;
                 return;
             }
 
@@ -240,7 +369,6 @@
                     statusBadge = `<span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Submitted</span>`;
                 }
 
-                // Format created_at to readable date/time
                 let formattedDate = '-';
                 if (row.created_at) {
                     const d = new Date(row.created_at);
@@ -263,6 +391,9 @@
                     <td class="px-4 py-3">${statusBadge}</td>
                     <td class="px-4 py-3 font-mono text-gray-600">${job.po_number || '-'}</td>
                     <td class="px-4 py-3 font-mono text-xs text-gray-500">${formattedDate}</td>
+                    <td class="px-4 py-3 text-center">
+                        <button onclick="deleteBid('${row.id}')" class="bg-red-500 text-white px-2.5 py-1 rounded text-xs hover:bg-red-600 transition shadow-sm">Delete</button>
+                    </td>
                 `;
                 tbody.appendChild(tr);
             });
