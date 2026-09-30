@@ -37,7 +37,7 @@
 
         <!-- Data Dashboard Section (Hidden by default) -->
         <div id="data-section" class="hidden">
-            <!-- Clickable Summary Cards (Aligned to Job Status) -->
+            <!-- Clickable Summary Cards -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                 <div onclick="setJobStatusFilter('all')" id="card-all" class="bg-blue-50 border-2 border-blue-300 p-4 rounded-lg cursor-pointer hover:bg-blue-100 transition shadow-sm">
                     <p class="text-xs text-blue-600 font-semibold uppercase">Total Visible Bids (Click to Reset)</p>
@@ -63,10 +63,13 @@
                     <button onclick="clearDateFilter()" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300 transition">Clear Dates</button>
                     <button onclick="resetHiddenRows()" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300 transition" title="Show all locally hidden test rows again">Reset Hidden</button>
                 </div>
-                <div class="flex items-center space-x-3">
-                    <button onclick="exportCSV()" class="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 transition shadow-sm font-medium">
-                        Export CSV
-                    </button>
+                <div class="flex items-center space-x-3 flex-wrap">
+                    <div class="flex flex-col items-end">
+                        <button onclick="exportCSV()" class="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 transition shadow-sm font-medium">
+                            Export CSV
+                        </button>
+                        <span id="last-export-display" class="text-[11px] text-gray-500 mt-0.5">Last Export: Never</span>
+                    </div>
                     <button onclick="fetchFinalData()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition shadow-sm font-medium">
                         Refresh Data
                     </button>
@@ -108,7 +111,7 @@
         const mySupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         let globalData = []; 
-        let currentJobStatusFilter = 'all'; // 'all', 'archived', 'other'
+        let currentJobStatusFilter = 'all'; 
         let hiddenIds = JSON.parse(localStorage.getItem('nbt_hidden_bids') || '[]');
 
         checkSession();
@@ -121,6 +124,7 @@
                     return;
                 }
                 showDataSection(session.user.email);
+                loadLastExportTime();
                 fetchFinalData();
             }
         }
@@ -160,6 +164,7 @@
             } else {
                 errorEl.classList.add('hidden');
                 showDataSection(data.user.email);
+                loadLastExportTime();
                 fetchFinalData(); 
             }
         }
@@ -185,7 +190,6 @@
 
         async function fetchFinalData() {
             try {
-                // READ ONLY: Fetches bids with related jobs and transporters
                 const { data, error } = await mySupabase
                     .from('bids')
                     .select(`
@@ -255,7 +259,6 @@
                 const job = row.jobs || {};
                 const jobStatus = (job.status || '').toLowerCase();
 
-                // Job Status filter
                 if (currentJobStatusFilter === 'archived' && jobStatus !== 'archived') {
                     return false;
                 }
@@ -263,7 +266,6 @@
                     return false;
                 }
 
-                // Date range filter
                 if (startDate || endDate) {
                     if (!row.created_at) return false;
                     const rowDate = row.created_at.substring(0, 10);
@@ -306,6 +308,13 @@
             hiddenIds = [];
             localStorage.removeItem('nbt_hidden_bids');
             applyFilters();
+        }
+
+        function loadLastExportTime() {
+            const lastTime = localStorage.getItem('nbt_last_export_time');
+            if (lastTime) {
+                document.getElementById('last-export-display').textContent = `Last Export: ${lastTime}`;
+            }
         }
 
         function exportCSV() {
@@ -363,6 +372,12 @@
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+
+            // Record and display last export time
+            const now = new Date();
+            const timeString = now.toISOString().replace('T', ' ').substring(0, 19);
+            localStorage.setItem('nbt_last_export_time', timeString);
+            document.getElementById('last-export-display').textContent = `Last Export: ${timeString}`;
         }
 
         function renderTable(rows) {
@@ -378,7 +393,6 @@
                 const job = row.jobs || {};
                 const transporter = row.transporters || {};
                 
-                // Job status badge
                 let statusBadge = `<span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">${job.status || '-'}</span>`;
                 if ((job.status || '').toLowerCase() === 'archived') {
                     statusBadge = `<span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold">Archived</span>`;
