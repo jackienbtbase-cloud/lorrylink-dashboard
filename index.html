@@ -56,25 +56,29 @@
 
         async function fetchFinalData() {
             try {
-                // 以 bids 为主表，通过外键关联 jobs 和 transporters
-               const { data, error } = await mySupabase
-                      .from('bids') // 👈 1. 告诉系统：主表是 bids
-                      .select(`
-                          id, 
-                          status, 
-                          proposed_price,   // 👈 2. 这些是 bids 表自己的 column
-                  
-                          jobs (            // 👈 3. 神奇的地方来了！直接让它去 jobs 表顺藤摸瓜
-                              source_loc,
-                              item_desc,
-                              delivery_date
-                          ),
-                  
-                          transporters (    // 👈 4. 再让它去 transporters 表顺藤摸瓜
-                              company_name,
-                              contact_person
-                          )
-                      `);
+                const { data, error } = await mySupabase
+                    .from('bids')
+                    .select(`
+                        id,
+                        job_id,
+                        status,
+                        proposed_price,
+                        po_number,
+                        jobs (
+                            id,
+                            source_loc,
+                            item_desc,
+                            quantity,
+                            delivery_date,
+                            offered_price,
+                            remarks
+                        ),
+                        transporters (
+                            id,
+                            company_name,
+                            contact_person
+                        )
+                    `);
 
                 if (error) throw error;
                 renderTable(data);
@@ -82,7 +86,7 @@
                 console.error('获取数据失败:', err);
                 document.getElementById('table-body').innerHTML = `
                     <tr><td colspan="12" class="px-4 py-4 text-center text-red-500">
-                        加载失败。请确保你的表中已设置外键关联 (bids.job_id -> jobs.id, bids.transporter_id -> transporters.id)
+                        加载失败，请检查控制台。
                     </td></tr>
                 `;
             }
