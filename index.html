@@ -12,7 +12,7 @@
     </style>
 </head>
 <body class="bg-gray-50 p-6 font-sans">
-    <div class="w-full bg-white shadow-md rounded-lg overflow-hidden border border-gray-200">
+    <div class="max-w-[98%] mx-auto bg-white shadow-md rounded-lg overflow-hidden border border-gray-200">
         <!-- Top Navigation Bar -->
         <div class="p-4 border-b border-gray-200 flex justify-between items-center bg-white">
             <h1 class="text-xl font-bold text-gray-800">📦 Final (Bids Dashboard)</h1>
@@ -37,32 +37,43 @@
         </div>
 
         <!-- Data Table Section (Hidden by default) -->
-        <div id="data-section" class="table-container max-h-[800px] hidden">
-            <div class="p-4 bg-gray-50 border-b border-gray-200 flex justify-end">
-                <button onclick="fetchFinalData()" class="bg-gray-200 text-gray-700 px-4 py-2 rounded text-sm hover:bg-gray-300 transition shadow-sm">
+        <div id="data-section" class="hidden">
+            <!-- Control Bar: Date Filter & Refresh -->
+            <div class="p-4 bg-gray-50 border-b border-gray-200 flex flex-wrap justify-between items-center gap-4">
+                <div class="flex items-center space-x-3">
+                    <label class="text-sm font-medium text-gray-700">Filter by Created Date:</label>
+                    <input type="date" id="date-filter" onchange="filterByDate()" class="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <button onclick="clearDateFilter()" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300 transition">Clear</button>
+                </div>
+                <button onclick="fetchFinalData()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition shadow-sm font-medium">
                     Refresh Data
                 </button>
             </div>
-            <table class="min-w-full divide-y divide-gray-200 text-left text-sm whitespace-nowrap">
-                <thead>
-                    <tr>
-                        <th class="px-4 py-3 font-semibold text-gray-600">Job ID</th>
-                        <th class="px-4 py-3 font-semibold text-gray-600">Company Name</th>
-                        <th class="px-4 py-3 font-semibold text-gray-600">Contact Person</th>
-                        <th class="px-4 py-3 font-semibold text-gray-600">Source Location</th>
-                        <th class="px-4 py-3 font-semibold text-gray-600">Item Desc</th>
-                        <th class="px-4 py-3 font-semibold text-gray-600">Quantity</th>
-                        <th class="px-4 py-3 font-semibold text-gray-600">Delivery Date</th>
-                        <th class="px-4 py-3 font-semibold text-gray-600">Offered Price</th>
-                        <th class="px-4 py-3 font-semibold text-gray-600">Remarks</th>
-                        <th class="px-4 py-3 font-semibold text-gray-600">Status</th>
-                        <th class="px-4 py-3 font-semibold text-gray-600">PO Number</th>
-                    </tr>
-                </thead>
-                <tbody id="table-body" class="divide-y divide-gray-200 text-gray-700">
-                    <!-- Data rows populated here -->
-                </tbody>
-            </table>
+
+            <!-- Scrollable Table Container -->
+            <div class="table-container max-h-[750px]">
+                <table class="min-w-full divide-y divide-gray-200 text-left text-sm whitespace-nowrap">
+                    <thead>
+                        <tr>
+                            <th class="px-4 py-3 font-semibold text-gray-600">Job ID</th>
+                            <th class="px-4 py-3 font-semibold text-gray-600">Company Name</th>
+                            <th class="px-4 py-3 font-semibold text-gray-600">Contact Person</th>
+                            <th class="px-4 py-3 font-semibold text-gray-600">Source Location</th>
+                            <th class="px-4 py-3 font-semibold text-gray-600">Item Desc</th>
+                            <th class="px-4 py-3 font-semibold text-gray-600">Quantity</th>
+                            <th class="px-4 py-3 font-semibold text-gray-600">Delivery Date</th>
+                            <th class="px-4 py-3 font-semibold text-gray-600">Offered Price</th>
+                            <th class="px-4 py-3 font-semibold text-gray-600">Remarks</th>
+                            <th class="px-4 py-3 font-semibold text-gray-600">Status</th>
+                            <th class="px-4 py-3 font-semibold text-gray-600">PO Number</th>
+                            <th class="px-4 py-3 font-semibold text-gray-600">Created At</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="divide-y divide-gray-200 text-gray-700">
+                        <!-- Data rows populated here -->
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -72,12 +83,13 @@
         
         const mySupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+        let globalData = []; // Store raw data for client-side filtering
+
         checkSession();
 
         async function checkSession() {
             const { data: { session } } = await mySupabase.auth.getSession();
             if (session) {
-                // Double check session email as well
                 if (session.user.email !== 'admin@nbt.com') {
                     await mySupabase.auth.signOut();
                     return;
@@ -99,7 +111,6 @@
                 return;
             }
 
-            // RESTRICT LOGIN TO admin@nbt.com ONLY
             if (email !== 'admin@nbt.com') {
                 errorEl.textContent = "Access denied: Only admin@nbt.com is permitted.";
                 errorEl.classList.remove('hidden');
@@ -135,6 +146,7 @@
             document.getElementById('user-status').textContent = 'Not Logged In';
             document.getElementById('table-body').innerHTML = '';
             document.getElementById('password').value = '';
+            globalData = [];
         }
 
         function showDataSection(email) {
@@ -142,7 +154,7 @@
             document.getElementById('data-section').classList.remove('hidden');
             document.getElementById('logout-btn').classList.remove('hidden');
             document.getElementById('user-status').textContent = `Logged in: ${email}`;
-            document.getElementById('table-body').innerHTML = `<tr><td colspan="11" class="px-4 py-12 text-center text-blue-500 font-semibold">Fetching latest data...</td></tr>`;
+            document.getElementById('table-body').innerHTML = `<tr><td colspan="12" class="px-4 py-12 text-center text-blue-500 font-semibold">Fetching latest data...</td></tr>`;
         }
 
         async function fetchFinalData() {
@@ -154,6 +166,7 @@
                         job_id,
                         status,
                         proposed_price,
+                        created_at,
                         jobs (
                             id,
                             source_loc,
@@ -169,14 +182,16 @@
                             company_name,
                             contact_person
                         )
-                    `);
+                    `)
+                    .order('created_at', { ascending: false });
 
                 if (error) throw error;
-                renderTable(data);
+                globalData = data || [];
+                renderTable(globalData);
             } catch (err) {
                 console.error('Fetch data failed:', err);
                 document.getElementById('table-body').innerHTML = `
-                    <tr><td colspan="11" class="px-4 py-8 text-center text-red-500 bg-red-50">
+                    <tr><td colspan="12" class="px-4 py-8 text-center text-red-500 bg-red-50">
                         <p class="font-bold">Load Failed</p>
                         <p class="text-sm mt-1">Please check F12 Console for details.</p>
                     </td></tr>
@@ -184,12 +199,33 @@
             }
         }
 
+        function filterByDate() {
+            const selectedDate = document.getElementById('date-filter').value;
+            if (!selectedDate) {
+                renderTable(globalData);
+                return;
+            }
+
+            const filtered = globalData.filter(row => {
+                if (!row.created_at) return false;
+                // row.created_at format: "2026-09-30T10:00:00..."
+                return row.created_at.startsWith(selectedDate);
+            });
+
+            renderTable(filtered);
+        }
+
+        function clearDateFilter() {
+            document.getElementById('date-filter').value = '';
+            renderTable(globalData);
+        }
+
         function renderTable(rows) {
             const tbody = document.getElementById('table-body');
             tbody.innerHTML = '';
 
             if (!rows || rows.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="11" class="px-4 py-12 text-center text-gray-500">No matching data found in database.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-12 text-center text-gray-500">No matching data found in database.</td></tr>`;
                 return;
             }
 
@@ -202,6 +238,13 @@
                     statusBadge = `<span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold">Accepted</span>`;
                 } else if (row.status === 'submitted') {
                     statusBadge = `<span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Submitted</span>`;
+                }
+
+                // Format created_at to readable date/time
+                let formattedDate = '-';
+                if (row.created_at) {
+                    const d = new Date(row.created_at);
+                    formattedDate = d.toISOString().replace('T', ' ').substring(0, 19);
                 }
 
                 const tr = document.createElement('tr');
@@ -219,6 +262,7 @@
                     <td class="px-4 py-3 text-xs text-gray-500 max-w-[150px] truncate" title="${job.remarks || ''}">${job.remarks || '-'}</td>
                     <td class="px-4 py-3">${statusBadge}</td>
                     <td class="px-4 py-3 font-mono text-gray-600">${job.po_number || '-'}</td>
+                    <td class="px-4 py-3 font-mono text-xs text-gray-500">${formattedDate}</td>
                 `;
                 tbody.appendChild(tr);
             });
