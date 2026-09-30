@@ -63,7 +63,6 @@
                         job_id,
                         status,
                         proposed_price,
-                        po_number,
                         jobs (
                             id,
                             source_loc,
@@ -71,7 +70,8 @@
                             quantity,
                             delivery_date,
                             offered_price,
-                            remarks
+                            remarks,
+                            po_number    // 👈 移到这里来了！
                         ),
                         transporters (
                             id,
