@@ -52,12 +52,12 @@
         const SUPABASE_URL = 'https://cqbuguapyeyshujhkvky.supabase.co'; 
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxYnVndWFweWV5c2h1amhrdmt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2OTI5NTQsImV4cCI6MjEwMDI2ODk1NH0.C2EuPMe1ijXCcgJ300iGs-yjyVOs4lC-TuwGu33WAsc'; 
         
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const mySupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         async function fetchFinalData() {
             try {
                 // 以 bids 为主表，通过外键关联 jobs 和 transporters
-               const { data, error } = await supabase
+               const { data, error } = await mySupabase
                       .from('bids') // 👈 1. 告诉系统：主表是 bids
                       .select(`
                           id, 
