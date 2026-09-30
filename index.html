@@ -14,7 +14,7 @@
     <div class="max-w-[98%] mx-auto bg-white shadow-md rounded-lg overflow-hidden border border-gray-200 p-6">
         <!-- Top Navigation Bar -->
         <div class="pb-4 border-b border-gray-200 flex justify-between items-center mb-6">
-            <h1 class="text-xl font-bold text-gray-800">📦 Final (Bids Dashboard - Safe View)</h1>
+            <h1 class="text-xl font-bold text-gray-800">📦 Final (Accounting & Bids Dashboard)</h1>
             <div class="flex items-center space-x-4">
                 <span id="user-status" class="text-sm text-gray-500 font-medium">Not Logged In</span>
                 <button onclick="logout()" class="text-sm text-red-500 hover:text-red-700 hover:underline hidden transition" id="logout-btn">Logout</button>
@@ -37,19 +37,19 @@
 
         <!-- Data Dashboard Section (Hidden by default) -->
         <div id="data-section" class="hidden">
-            <!-- Clickable Summary Cards -->
+            <!-- Clickable Summary Cards (Aligned to Job Status) -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                <div onclick="setStatusFilter('all')" id="card-all" class="bg-blue-50 border-2 border-blue-300 p-4 rounded-lg cursor-pointer hover:bg-blue-100 transition shadow-sm">
+                <div onclick="setJobStatusFilter('all')" id="card-all" class="bg-blue-50 border-2 border-blue-300 p-4 rounded-lg cursor-pointer hover:bg-blue-100 transition shadow-sm">
                     <p class="text-xs text-blue-600 font-semibold uppercase">Total Visible Bids (Click to Reset)</p>
                     <p id="stat-total" class="text-2xl font-bold text-blue-800">0</p>
                 </div>
-                <div onclick="setStatusFilter('accepted')" id="card-accepted" class="bg-white border border-green-200 p-4 rounded-lg cursor-pointer hover:bg-green-50 transition shadow-sm">
-                    <p class="text-xs text-green-600 font-semibold uppercase">Accepted (Click to Filter)</p>
-                    <p id="stat-accepted" class="text-2xl font-bold text-green-800">0</p>
+                <div onclick="setJobStatusFilter('archived')" id="card-archived" class="bg-white border border-green-200 p-4 rounded-lg cursor-pointer hover:bg-green-50 transition shadow-sm">
+                    <p class="text-xs text-green-600 font-semibold uppercase">Archived Jobs - Ready to Pay (Click to Filter)</p>
+                    <p id="stat-archived" class="text-2xl font-bold text-green-800">0</p>
                 </div>
-                <div onclick="setStatusFilter('submitted')" id="card-submitted" class="bg-white border border-yellow-200 p-4 rounded-lg cursor-pointer hover:bg-yellow-50 transition shadow-sm">
-                    <p class="text-xs text-yellow-600 font-semibold uppercase">Submitted (Click to Filter)</p>
-                    <p id="stat-submitted" class="text-2xl font-bold text-yellow-800">0</p>
+                <div onclick="setJobStatusFilter('other')" id="card-other" class="bg-white border border-gray-200 p-4 rounded-lg cursor-pointer hover:bg-gray-100 transition shadow-sm">
+                    <p class="text-xs text-gray-600 font-semibold uppercase">Other Job Status (Click to Filter)</p>
+                    <p id="stat-other" class="text-2xl font-bold text-gray-800">0</p>
                 </div>
             </div>
 
@@ -61,7 +61,7 @@
                     <span class="text-xs text-gray-500">to</span>
                     <input type="date" id="end-date" onchange="applyFilters()" class="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                     <button onclick="clearDateFilter()" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300 transition">Clear Dates</button>
-                    <button onclick="resetHiddenRows()" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300 transition" title="Show all locally hidden rows again">Reset Hidden</button>
+                    <button onclick="resetHiddenRows()" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300 transition" title="Show all locally hidden test rows again">Reset Hidden</button>
                 </div>
                 <div class="flex items-center space-x-3">
                     <button onclick="exportCSV()" class="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 transition shadow-sm font-medium">
@@ -87,7 +87,7 @@
                             <th class="px-4 py-3 font-semibold text-gray-600">Delivery Date</th>
                             <th class="px-4 py-3 font-semibold text-gray-600">Offered Price</th>
                             <th class="px-4 py-3 font-semibold text-gray-600">Remarks</th>
-                            <th class="px-4 py-3 font-semibold text-gray-600">Status</th>
+                            <th class="px-4 py-3 font-semibold text-gray-600">Job Status</th>
                             <th class="px-4 py-3 font-semibold text-gray-600">PO Number</th>
                             <th class="px-4 py-3 font-semibold text-gray-600">Created At</th>
                             <th class="px-4 py-3 font-semibold text-gray-600 text-center">Local Action</th>
@@ -108,7 +108,7 @@
         const mySupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         let globalData = []; 
-        let currentStatusFilter = 'all'; 
+        let currentJobStatusFilter = 'all'; // 'all', 'archived', 'other'
         let hiddenIds = JSON.parse(localStorage.getItem('nbt_hidden_bids') || '[]');
 
         checkSession();
@@ -185,7 +185,7 @@
 
         async function fetchFinalData() {
             try {
-                // READ ONLY: Only fetches data from Supabase, never writes or deletes
+                // READ ONLY: Fetches bids with related jobs and transporters
                 const { data, error } = await mySupabase
                     .from('bids')
                     .select(`
@@ -202,7 +202,8 @@
                             delivery_date,
                             offered_price,
                             remarks,
-                            po_number
+                            po_number,
+                            status
                         ),
                         transporters (
                             id,
@@ -226,20 +227,20 @@
             }
         }
 
-        function setStatusFilter(status) {
-            currentStatusFilter = status;
+        function setJobStatusFilter(filterType) {
+            currentJobStatusFilter = filterType;
             
-            document.getElementById('card-all').className = status === 'all' 
+            document.getElementById('card-all').className = filterType === 'all' 
                 ? 'bg-blue-50 border-2 border-blue-300 p-4 rounded-lg cursor-pointer hover:bg-blue-100 transition shadow-sm' 
                 : 'bg-white border border-blue-200 p-4 rounded-lg cursor-pointer hover:bg-blue-50 transition shadow-sm';
             
-            document.getElementById('card-accepted').className = status === 'accepted' 
+            document.getElementById('card-archived').className = filterType === 'archived' 
                 ? 'bg-green-50 border-2 border-green-400 p-4 rounded-lg cursor-pointer hover:bg-green-100 transition shadow-sm' 
                 : 'bg-white border border-green-200 p-4 rounded-lg cursor-pointer hover:bg-green-50 transition shadow-sm';
             
-            document.getElementById('card-submitted').className = status === 'submitted' 
-                ? 'bg-yellow-50 border-2 border-yellow-400 p-4 rounded-lg cursor-pointer hover:bg-yellow-100 transition shadow-sm' 
-                : 'bg-white border border-yellow-200 p-4 rounded-lg cursor-pointer hover:bg-yellow-50 transition shadow-sm';
+            document.getElementById('card-other').className = filterType === 'other' 
+                ? 'bg-gray-100 border-2 border-gray-400 p-4 rounded-lg cursor-pointer hover:bg-gray-200 transition shadow-sm' 
+                : 'bg-white border border-gray-200 p-4 rounded-lg cursor-pointer hover:bg-gray-50 transition shadow-sm';
 
             applyFilters();
         }
@@ -249,13 +250,19 @@
             const endDate = document.getElementById('end-date').value;
 
             let filtered = globalData.filter(row => {
-                // Ignore locally hidden test rows
                 if (hiddenIds.includes(row.id)) return false;
 
-                // Status filter
-                if (currentStatusFilter !== 'all' && row.status !== currentStatusFilter) {
+                const job = row.jobs || {};
+                const jobStatus = (job.status || '').toLowerCase();
+
+                // Job Status filter
+                if (currentJobStatusFilter === 'archived' && jobStatus !== 'archived') {
                     return false;
                 }
+                if (currentJobStatusFilter === 'other' && jobStatus === 'archived') {
+                    return false;
+                }
+
                 // Date range filter
                 if (startDate || endDate) {
                     if (!row.created_at) return false;
@@ -266,19 +273,19 @@
                 return true;
             });
 
-            updateSummaryCards(filtered);
+            updateSummaryCards();
             renderTable(filtered);
         }
 
-        function updateSummaryCards(filteredRows) {
+        function updateSummaryCards() {
             const visibleAll = globalData.filter(r => !hiddenIds.includes(r.id));
             const total = visibleAll.length;
-            const accepted = visibleAll.filter(r => r.status === 'accepted').length;
-            const submitted = visibleAll.filter(r => r.status === 'submitted').length;
+            const archivedCount = visibleAll.filter(r => ((r.jobs || {}).status || '').toLowerCase() === 'archived').length;
+            const otherCount = total - archivedCount;
 
             document.getElementById('stat-total').textContent = total;
-            document.getElementById('stat-accepted').textContent = accepted;
-            document.getElementById('stat-submitted').textContent = submitted;
+            document.getElementById('stat-archived').textContent = archivedCount;
+            document.getElementById('stat-other').textContent = otherCount;
         }
 
         function clearDateFilter() {
@@ -287,7 +294,6 @@
             applyFilters();
         }
 
-        // SAFE LOCAL HIDE: Only hides row from your browser view, NEVER touches Supabase database!
         function hideLocally(id) {
             if (!hiddenIds.includes(id)) {
                 hiddenIds.push(id);
@@ -308,7 +314,11 @@
 
             let rowsToExport = globalData.filter(row => {
                 if (hiddenIds.includes(row.id)) return false;
-                if (currentStatusFilter !== 'all' && row.status !== currentStatusFilter) return false;
+                const job = row.jobs || {};
+                const jobStatus = (job.status || '').toLowerCase();
+                if (currentJobStatusFilter === 'archived' && jobStatus !== 'archived') return false;
+                if (currentJobStatusFilter === 'other' && jobStatus === 'archived') return false;
+
                 if (startDate || endDate) {
                     if (!row.created_at) return false;
                     const rowDate = row.created_at.substring(0, 10);
@@ -324,7 +334,7 @@
             }
 
             let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "Job ID,Company Name,Contact Person,Source Location,Item Desc,Quantity,Delivery Date,Offered Price,Remarks,Status,PO Number,Created At\r\n";
+            csvContent += "Job ID,Company Name,Contact Person,Source Location,Item Desc,Quantity,Delivery Date,Offered Price,Remarks,Job Status,PO Number,Created At\r\n";
 
             rowsToExport.forEach(row => {
                 const job = row.jobs || {};
@@ -339,7 +349,7 @@
                     job.delivery_date || '',
                     job.offered_price || '',
                     `"${(job.remarks || '').replace(/"/g, '""')}"`,
-                    row.status || '',
+                    job.status || '',
                     job.po_number || '',
                     row.created_at || ''
                 ].join(",");
@@ -349,7 +359,7 @@
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `bids_report_${new Date().toISOString().substring(0, 10)}.csv`);
+            link.setAttribute("download", `archived_jobs_report_${new Date().toISOString().substring(0, 10)}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -368,11 +378,10 @@
                 const job = row.jobs || {};
                 const transporter = row.transporters || {};
                 
-                let statusBadge = `<span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">${row.status || '-'}</span>`;
-                if (row.status === 'accepted') {
-                    statusBadge = `<span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold">Accepted</span>`;
-                } else if (row.status === 'submitted') {
-                    statusBadge = `<span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Submitted</span>`;
+                // Job status badge
+                let statusBadge = `<span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">${job.status || '-'}</span>`;
+                if ((job.status || '').toLowerCase() === 'archived') {
+                    statusBadge = `<span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold">Archived</span>`;
                 }
 
                 let formattedDate = '-';
