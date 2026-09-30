@@ -7,22 +7,42 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* 让表格容器支持横向滚动，防止列数太多挤在一起 */
         .table-container { overflow-x: auto; }
-        /* 固定表头，滚动时更方便看 */
         th { position: sticky; top: 0; background-color: #f3f4f6; z-index: 10; }
     </style>
 </head>
 <body class="bg-gray-50 p-6 font-sans">
     <div class="w-full bg-white shadow-md rounded-lg overflow-hidden border border-gray-200">
+        <!-- 顶部导航栏 -->
         <div class="p-4 border-b border-gray-200 flex justify-between items-center bg-white">
-            <h1 class="text-xl font-bold text-gray-800">Final (Bids 关联看板)</h1>
-            <button onclick="fetchFinalData()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition">
-                刷新数据
-            </button>
+            <h1 class="text-xl font-bold text-gray-800">📦 Final (Bids 关联看板)</h1>
+            <div class="flex items-center space-x-4">
+                <span id="user-status" class="text-sm text-gray-500 font-medium">未登录</span>
+                <button onclick="logout()" class="text-sm text-red-500 hover:text-red-700 hover:underline hidden transition" id="logout-btn">退出登录</button>
+            </div>
         </div>
 
-        <div class="table-container max-h-[800px]">
+        <!-- 登录表单区域 -->
+        <div id="login-section" class="p-12 max-w-sm mx-auto">
+            <div class="text-center mb-8">
+                <h2 class="text-2xl font-bold text-gray-800">系统验证</h2>
+                <p class="text-sm text-gray-500 mt-2">请输入后台授权账号以查看数据</p>
+            </div>
+            <input type="email" id="email" placeholder="邮箱 (如 admin@nbt.com)" class="w-full mb-4 p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <input type="password" id="password" placeholder="密码" class="w-full mb-6 p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" onkeydown="if(event.key === 'Enter') handleLogin()">
+            <button onclick="handleLogin()" id="login-btn" class="w-full bg-blue-600 text-white py-3 rounded font-semibold hover:bg-blue-700 transition shadow-sm">
+                登录看板
+            </button>
+            <p id="login-error" class="text-red-500 text-sm mt-4 hidden text-center bg-red-50 p-2 rounded"></p>
+        </div>
+
+        <!-- 数据表格区域（默认隐藏） -->
+        <div id="data-section" class="table-container max-h-[800px] hidden">
+            <div class="p-4 bg-gray-50 border-b border-gray-200 flex justify-end">
+                <button onclick="fetchFinalData()" class="bg-gray-200 text-gray-700 px-4 py-2 rounded text-sm hover:bg-gray-300 transition shadow-sm">
+                    刷新数据
+                </button>
+            </div>
             <table class="min-w-full divide-y divide-gray-200 text-left text-sm whitespace-nowrap">
                 <thead>
                     <tr>
@@ -37,23 +57,88 @@
                         <th class="px-4 py-3 font-semibold text-gray-600">Remarks</th>
                         <th class="px-4 py-3 font-semibold text-gray-600">Status</th>
                         <th class="px-4 py-3 font-semibold text-gray-600">PO Number</th>
-                        <th class="px-4 py-3 font-semibold text-gray-600">Accepted Price</th>
                     </tr>
                 </thead>
                 <tbody id="table-body" class="divide-y divide-gray-200 text-gray-700">
-                    <tr><td colspan="12" class="px-4 py-8 text-center text-gray-400">加载中...</td></tr>
+                    <!-- 数据将填充在这里 -->
                 </tbody>
             </table>
         </div>
     </div>
 
     <script>
-        // 【第一步】：替换为你 NBT LorryLink 项目的真实 URL 和 Key
-        const SUPABASE_URL = 'https://cqbuguapyeyshujhkvky.supabase.co'; 
+        // 【第一步】：在这里填入你的 Project URL 和 ANON KEY
+        const SUPABASE_URL = 'https://cqbuguapyeyxhujhkvky.supabase.co'; 
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxYnVndWFweWV5c2h1amhrdmt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2OTI5NTQsImV4cCI6MjEwMDI2ODk1NH0.C2EuPMe1ijXCcgJ300iGs-yjyVOs4lC-TuwGu33WAsc'; 
         
         const mySupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+        // 页面一加载就检查是否已经保存了登录状态
+        checkSession();
+
+        async function checkSession() {
+            const { data: { session } } = await mySupabase.auth.getSession();
+            if (session) {
+                showDataSection(session.user.email);
+                fetchFinalData();
+            }
+        }
+
+        // 处理登录逻辑
+        async function handleLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorEl = document.getElementById('login-error');
+            const btn = document.getElementById('login-btn');
+
+            if (!email || !password) {
+                errorEl.textContent = "请输入邮箱和密码";
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            btn.textContent = "登录中...";
+            btn.disabled = true;
+
+            const { data, error } = await mySupabase.auth.signInWithPassword({
+                email: email,
+                password: password,
+            });
+
+            btn.textContent = "登录看板";
+            btn.disabled = false;
+
+            if (error) {
+                errorEl.textContent = "登录失败：" + error.message;
+                errorEl.classList.remove('hidden');
+            } else {
+                errorEl.classList.add('hidden');
+                showDataSection(data.user.email);
+                fetchFinalData(); 
+            }
+        }
+
+        // 处理退出登录
+        async function logout() {
+            await mySupabase.auth.signOut();
+            document.getElementById('data-section').classList.add('hidden');
+            document.getElementById('login-section').classList.remove('hidden');
+            document.getElementById('logout-btn').classList.add('hidden');
+            document.getElementById('user-status').textContent = '未登录';
+            document.getElementById('table-body').innerHTML = '';
+            document.getElementById('password').value = '';
+        }
+
+        // 切换 UI 状态
+        function showDataSection(email) {
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('data-section').classList.remove('hidden');
+            document.getElementById('logout-btn').classList.remove('hidden');
+            document.getElementById('user-status').textContent = `已登录: ${email}`;
+            document.getElementById('table-body').innerHTML = `<tr><td colspan="11" class="px-4 py-12 text-center text-blue-500 font-semibold">正在从数据库拉取最新数据...</td></tr>`;
+        }
+
+        // 核心的联表查询代码（已去除所有多余注释，绝对纯净）
         async function fetchFinalData() {
             try {
                 const { data, error } = await mySupabase
@@ -71,7 +156,7 @@
                             delivery_date,
                             offered_price,
                             remarks,
-                            po_number   
+                            po_number
                         ),
                         transporters (
                             id,
@@ -85,51 +170,55 @@
             } catch (err) {
                 console.error('获取数据失败:', err);
                 document.getElementById('table-body').innerHTML = `
-                    <tr><td colspan="12" class="px-4 py-4 text-center text-red-500">
-                        加载失败，请检查控制台。
+                    <tr><td colspan="11" class="px-4 py-8 text-center text-red-500 bg-red-50">
+                        <p class="font-bold">加载失败</p>
+                        <p class="text-sm mt-1">请按 F12 检查控制台 (Console) 报错信息。</p>
                     </td></tr>
                 `;
             }
         }
 
+        // 渲染表格数据
         function renderTable(rows) {
             const tbody = document.getElementById('table-body');
             tbody.innerHTML = '';
 
             if (!rows || rows.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-4 text-center text-gray-400">没有数据</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="11" class="px-4 py-12 text-center text-gray-500">当前数据库中暂无匹配的数据。</td></tr>`;
                 return;
             }
 
             rows.forEach(row => {
-                // 提取关联表数据，防止空值报错
                 const job = row.jobs || {};
                 const transporter = row.transporters || {};
+                
+                // 格式化状态标签
+                let statusBadge = `<span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">${row.status || '-'}</span>`;
+                if (row.status === 'accepted') {
+                    statusBadge = `<span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold">Accepted</span>`;
+                } else if (row.status === 'submitted') {
+                    statusBadge = `<span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Submitted</span>`;
+                }
 
                 const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-100 transition-colors';
+                tr.className = 'hover:bg-blue-50 transition-colors border-b border-gray-100';
                 
-                // 对应截图里的 12 个标题列进行数据填充
                 tr.innerHTML = `
-                    <td class="px-4 py-3 font-mono text-xs text-gray-500">${row.job_id || '-'}</td>
-                    <td class="px-4 py-3 font-semibold">${transporter.company_name || '-'}</td>
-                    <td class="px-4 py-3">${transporter.contact_person || '-'}</td>
-                    <td class="px-4 py-3">${job.source_loc || '-'}</td>
-                    <td class="px-4 py-3">${job.item_desc || '-'}</td>
-                    <td class="px-4 py-3">${job.quantity || '-'}</td>
-                    <td class="px-4 py-3">${job.delivery_date || '-'}</td>
-                    <td class="px-4 py-3">${job.offered_price || '-'}</td>
-                    <td class="px-4 py-3 text-xs max-w-xs truncate" title="${job.remarks || ''}">${job.remarks || '-'}</td>
-                    <td class="px-4 py-3">${row.status || '-'}</td>
-                    <td class="px-4 py-3">${row.po_number || '-'}</td>
-                    <td class="px-4 py-3 font-bold text-blue-600">${row.proposed_price || '-'}</td>
+                    <td class="px-4 py-3 font-mono text-xs text-gray-500">${row.job_id ? row.job_id.split('-')[0] + '...' : '-'}</td>
+                    <td class="px-4 py-3 font-semibold text-gray-800">${transporter.company_name || '-'}</td>
+                    <td class="px-4 py-3 text-gray-600">${transporter.contact_person || '-'}</td>
+                    <td class="px-4 py-3 text-gray-700">${job.source_loc || '-'}</td>
+                    <td class="px-4 py-3 text-gray-600">${job.item_desc || '-'}</td>
+                    <td class="px-4 py-3 text-gray-600">${job.quantity || '-'}</td>
+                    <td class="px-4 py-3 text-gray-600">${job.delivery_date || '-'}</td>
+                    <td class="px-4 py-3 text-gray-600">${job.offered_price ? 'RM ' + job.offered_price : '-'}</td>
+                    <td class="px-4 py-3 text-xs text-gray-500 max-w-[150px] truncate" title="${job.remarks || ''}">${job.remarks || '-'}</td>
+                    <td class="px-4 py-3">${statusBadge}</td>
+                    <td class="px-4 py-3 font-mono text-gray-600">${job.po_number || '-'}</td>
                 `;
                 tbody.appendChild(tr);
             });
         }
-
-        // 页面加载完成后获取数据
-        fetchFinalData();
     </script>
 </body>
 </html>
