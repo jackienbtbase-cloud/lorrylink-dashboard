@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Final Data Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* 让表格容器支持横向滚动，防止列数太多挤在一起 */
+        .table-container { overflow-x: auto; }
+        /* 固定表头，滚动时更方便看 */
+        th { position: sticky; top: 0; background-color: #f3f4f6; z-index: 10; }
+    </style>
+</head>
+<body class="bg-gray-50 p-6 font-sans">
+    <div class="w-full bg-white shadow-md rounded-lg overflow-hidden border border-gray-200">
+        <div class="p-4 border-b border-gray-200 flex justify-between items-center bg-white">
+            <h1 class="text-xl font-bold text-gray-800">Final (Bids 关联看板)</h1>
+            <button onclick="fetchFinalData()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition">
+                刷新数据
+            </button>
+        </div>
+
+        <div class="table-container max-h-[800px]">
+            <table class="min-w-full divide-y divide-gray-200 text-left text-sm whitespace-nowrap">
+                <thead>
+                    <tr>
+                        <th class="px-4 py-3 font-semibold text-gray-600">Job ID</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600">Company Name</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600">Contact Person</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600">Source Location</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600">Item Desc</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600">Quantity</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600">Delivery Date</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600">Offered Price</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600">Remarks</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600">Status</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600">PO Number</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600">Accepted Price</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body" class="divide-y divide-gray-200 text-gray-700">
+                    <tr><td colspan="12" class="px-4 py-8 text-center text-gray-400">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // 【第一步】：替换为你 NBT LorryLink 项目的真实 URL 和 Key
+        const SUPABASE_URL = 'https://cqbuguapyeyshujhkvky.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxYnVndWFweWV5c2h1amhrdmt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2OTI5NTQsImV4cCI6MjEwMDI2ODk1NH0.C2EuPMe1ijXCcgJ300iGs-yjyVOs4lC-TuwGu33WAsc'; 
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        async function fetchFinalData() {
+            try {
+                // 以 bids 为主表，通过外键关联 jobs 和 transporters
+               const { data, error } = await supabase
+                      .from('bids') // 👈 1. 告诉系统：主表是 bids
+                      .select(`
+                          id, 
+                          status, 
+                          proposed_price,   // 👈 2. 这些是 bids 表自己的 column
+                  
+                          jobs (            // 👈 3. 神奇的地方来了！直接让它去 jobs 表顺藤摸瓜
+                              source_loc,
+                              item_desc,
+                              delivery_date
+                          ),
+                  
+                          transporters (    // 👈 4. 再让它去 transporters 表顺藤摸瓜
+                              company_name,
+                              contact_person
+                          )
+                      `);
+
+                if (error) throw error;
+                renderTable(data);
+            } catch (err) {
+                console.error('获取数据失败:', err);
+                document.getElementById('table-body').innerHTML = `
+                    <tr><td colspan="12" class="px-4 py-4 text-center text-red-500">
+                        加载失败。请确保你的表中已设置外键关联 (bids.job_id -> jobs.id, bids.transporter_id -> transporters.id)
+                    </td></tr>
+                `;
+            }
+        }
+
+        function renderTable(rows) {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            if (!rows || rows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-4 text-center text-gray-400">没有数据</td></tr>`;
+                return;
+            }
+
+            rows.forEach(row => {
+                // 提取关联表数据，防止空值报错
+                const job = row.jobs || {};
+                const transporter = row.transporters || {};
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-100 transition-colors';
+                
+                // 对应截图里的 12 个标题列进行数据填充
+                tr.innerHTML = `
+                    <td class="px-4 py-3 font-mono text-xs text-gray-500">${row.job_id || '-'}</td>
+                    <td class="px-4 py-3 font-semibold">${transporter.company_name || '-'}</td>
+                    <td class="px-4 py-3">${transporter.contact_person || '-'}</td>
+                    <td class="px-4 py-3">${job.source_loc || '-'}</td>
+                    <td class="px-4 py-3">${job.item_desc || '-'}</td>
+                    <td class="px-4 py-3">${job.quantity || '-'}</td>
+                    <td class="px-4 py-3">${job.delivery_date || '-'}</td>
+                    <td class="px-4 py-3">${job.offered_price || '-'}</td>
+                    <td class="px-4 py-3 text-xs max-w-xs truncate" title="${job.remarks || ''}">${job.remarks || '-'}</td>
+                    <td class="px-4 py-3">${row.status || '-'}</td>
+                    <td class="px-4 py-3">${row.po_number || '-'}</td>
+                    <td class="px-4 py-3 font-bold text-blue-600">${row.proposed_price || '-'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 页面加载完成后获取数据
+        fetchFinalData();
+    </script>
+</body>
+</html>
