@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Final Data Dashboard</title>
+    <!-- 浏览器标签页图标：你可以把下面的 📦 换成你喜欢的任何表情 -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📦</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -373,7 +375,6 @@
             link.click();
             document.body.removeChild(link);
 
-            // Record and display last export time
             const now = new Date();
             const timeString = now.toISOString().replace('T', ' ').substring(0, 19);
             localStorage.setItem('nbt_last_export_time', timeString);
