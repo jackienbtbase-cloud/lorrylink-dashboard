@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Final Data Dashboard</title>
-    <!-- 浏览器标签页图标：你可以把下面的 📦 换成你喜欢的任何表情 -->
+    <!-- 浏览器标签页图标 -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📦</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -46,11 +46,11 @@
                     <p id="stat-total" class="text-2xl font-bold text-blue-800">0</p>
                 </div>
                 <div onclick="setJobStatusFilter('archived')" id="card-archived" class="bg-white border border-green-200 p-4 rounded-lg cursor-pointer hover:bg-green-50 transition shadow-sm">
-                    <p class="text-xs text-green-600 font-semibold uppercase">Archived Jobs - Ready to Pay (Click to Filter)</p>
+                    <p class="text-xs text-green-600 font-semibold uppercase">Archived & Ready to Pay [Archived + Price] (Click)</p>
                     <p id="stat-archived" class="text-2xl font-bold text-green-800">0</p>
                 </div>
                 <div onclick="setJobStatusFilter('other')" id="card-other" class="bg-white border border-gray-200 p-4 rounded-lg cursor-pointer hover:bg-gray-100 transition shadow-sm">
-                    <p class="text-xs text-gray-600 font-semibold uppercase">Other Job Status (Click to Filter)</p>
+                    <p class="text-xs text-gray-600 font-semibold uppercase">Other / Pending Pay (Click to Filter)</p>
                     <p id="stat-other" class="text-2xl font-bold text-gray-800">0</p>
                 </div>
             </div>
@@ -91,6 +91,7 @@
                             <th class="px-4 py-3 font-semibold text-gray-600">Quantity</th>
                             <th class="px-4 py-3 font-semibold text-gray-600">Delivery Date</th>
                             <th class="px-4 py-3 font-semibold text-gray-600">Offered Price</th>
+                            <th class="px-4 py-3 font-semibold text-green-700">Accepted Price</th>
                             <th class="px-4 py-3 font-semibold text-gray-600">Remarks</th>
                             <th class="px-4 py-3 font-semibold text-gray-600">Job Status</th>
                             <th class="px-4 py-3 font-semibold text-gray-600">PO Number</th>
@@ -113,7 +114,7 @@
         const mySupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         let globalData = []; 
-        let currentJobStatusFilter = 'all'; 
+        let currentJobStatusFilter = 'all'; // 'all', 'archived', 'other'
         let hiddenIds = JSON.parse(localStorage.getItem('nbt_hidden_bids') || '[]');
 
         checkSession();
@@ -187,7 +188,7 @@
             document.getElementById('data-section').classList.remove('hidden');
             document.getElementById('logout-btn').classList.remove('hidden');
             document.getElementById('user-status').textContent = `Logged in: ${email}`;
-            document.getElementById('table-body').innerHTML = `<tr><td colspan="13" class="px-4 py-12 text-center text-blue-500 font-semibold">Fetching latest data...</td></tr>`;
+            document.getElementById('table-body').innerHTML = `<tr><td colspan="14" class="px-4 py-12 text-center text-blue-500 font-semibold">Fetching latest data...</td></tr>`;
         }
 
         async function fetchFinalData() {
@@ -207,6 +208,7 @@
                             quantity,
                             delivery_date,
                             offered_price,
+                            accepted_price,
                             remarks,
                             po_number,
                             status
@@ -225,7 +227,7 @@
             } catch (err) {
                 console.error('Fetch data failed:', err);
                 document.getElementById('table-body').innerHTML = `
-                    <tr><td colspan="13" class="px-4 py-8 text-center text-red-500 bg-red-50">
+                    <tr><td colspan="14" class="px-4 py-8 text-center text-red-500 bg-red-50">
                         <p class="font-bold">Load Failed</p>
                         <p class="text-sm mt-1">Please check F12 Console for details.</p>
                     </td></tr>
@@ -251,6 +253,14 @@
             applyFilters();
         }
 
+        // Helper check for "Ready to Pay" (Archived AND has accepted_price)
+        function isReadyToPay(row) {
+            const job = row.jobs || {};
+            const jobStatus = (job.status || '').toLowerCase();
+            const hasPrice = job.accepted_price !== null && job.accepted_price !== undefined && job.accepted_price !== '' && Number(job.accepted_price) > 0;
+            return jobStatus === 'archived' && hasPrice;
+        }
+
         function applyFilters() {
             const startDate = document.getElementById('start-date').value;
             const endDate = document.getElementById('end-date').value;
@@ -258,13 +268,12 @@
             let filtered = globalData.filter(row => {
                 if (hiddenIds.includes(row.id)) return false;
 
-                const job = row.jobs || {};
-                const jobStatus = (job.status || '').toLowerCase();
+                const ready = isReadyToPay(row);
 
-                if (currentJobStatusFilter === 'archived' && jobStatus !== 'archived') {
+                if (currentJobStatusFilter === 'archived' && !ready) {
                     return false;
                 }
-                if (currentJobStatusFilter === 'other' && jobStatus === 'archived') {
+                if (currentJobStatusFilter === 'other' && ready) {
                     return false;
                 }
 
@@ -284,7 +293,7 @@
         function updateSummaryCards() {
             const visibleAll = globalData.filter(r => !hiddenIds.includes(r.id));
             const total = visibleAll.length;
-            const archivedCount = visibleAll.filter(r => ((r.jobs || {}).status || '').toLowerCase() === 'archived').length;
+            const archivedCount = visibleAll.filter(r => isReadyToPay(r)).length;
             const otherCount = total - archivedCount;
 
             document.getElementById('stat-total').textContent = total;
@@ -325,10 +334,9 @@
 
             let rowsToExport = globalData.filter(row => {
                 if (hiddenIds.includes(row.id)) return false;
-                const job = row.jobs || {};
-                const jobStatus = (job.status || '').toLowerCase();
-                if (currentJobStatusFilter === 'archived' && jobStatus !== 'archived') return false;
-                if (currentJobStatusFilter === 'other' && jobStatus === 'archived') return false;
+                const ready = isReadyToPay(row);
+                if (currentJobStatusFilter === 'archived' && !ready) return false;
+                if (currentJobStatusFilter === 'other' && ready) return false;
 
                 if (startDate || endDate) {
                     if (!row.created_at) return false;
@@ -345,7 +353,7 @@
             }
 
             let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "Job ID,Company Name,Contact Person,Source Location,Item Desc,Quantity,Delivery Date,Offered Price,Remarks,Job Status,PO Number,Created At\r\n";
+            csvContent += "Job ID,Company Name,Contact Person,Source Location,Item Desc,Quantity,Delivery Date,Offered Price,Accepted Price,Remarks,Job Status,PO Number,Created At\r\n";
 
             rowsToExport.forEach(row => {
                 const job = row.jobs || {};
@@ -359,6 +367,7 @@
                     job.quantity || '',
                     job.delivery_date || '',
                     job.offered_price || '',
+                    job.accepted_price || '',
                     `"${(job.remarks || '').replace(/"/g, '""')}"`,
                     job.status || '',
                     job.po_number || '',
@@ -370,7 +379,7 @@
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `archived_jobs_report_${new Date().toISOString().substring(0, 10)}.csv`);
+            link.setAttribute("download", `ready_to_pay_report_${new Date().toISOString().substring(0, 10)}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -386,7 +395,7 @@
             tbody.innerHTML = '';
 
             if (!rows || rows.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="13" class="px-4 py-12 text-center text-gray-500">No matching data found.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="14" class="px-4 py-12 text-center text-gray-500">No matching data found.</td></tr>`;
                 return;
             }
 
@@ -397,6 +406,12 @@
                 let statusBadge = `<span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">${job.status || '-'}</span>`;
                 if ((job.status || '').toLowerCase() === 'archived') {
                     statusBadge = `<span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold">Archived</span>`;
+                }
+
+                // Format Accepted Price
+                let acceptedPriceDisplay = '<span class="text-red-500 font-medium">Missing</span>';
+                if (job.accepted_price !== null && job.accepted_price !== undefined && job.accepted_price !== '') {
+                    acceptedPriceDisplay = `<span class="font-semibold text-green-700">RM ${job.accepted_price}</span>`;
                 }
 
                 let formattedDate = '-';
@@ -417,6 +432,7 @@
                     <td class="px-4 py-3 text-gray-600">${job.quantity || '-'}</td>
                     <td class="px-4 py-3 text-gray-600">${job.delivery_date || '-'}</td>
                     <td class="px-4 py-3 text-gray-600">${job.offered_price ? 'RM ' + job.offered_price : '-'}</td>
+                    <td class="px-4 py-3">${acceptedPriceDisplay}</td>
                     <td class="px-4 py-3 text-xs text-gray-500 max-w-[150px] truncate" title="${job.remarks || ''}">${job.remarks || '-'}</td>
                     <td class="px-4 py-3">${statusBadge}</td>
                     <td class="px-4 py-3 font-mono text-gray-600">${job.po_number || '-'}</td>
