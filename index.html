@@ -72,6 +72,10 @@
                         </button>
                         <span id="last-export-display" class="text-[11px] text-gray-500 mt-0.5">Last Export: Never</span>
                     </div>
+
+                    <!-- 上次更新时间显示 -->
+                    <span id="last-updated-display" class="text-sm text-gray-500 font-medium ml-2">Last updated: --:--:--</span>
+
                     <button onclick="fetchFinalData()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition shadow-sm font-medium">
                         Refresh Data
                     </button>
@@ -116,6 +120,9 @@
         let globalData = []; 
         let currentJobStatusFilter = 'all'; // 'all', 'archived', 'other'
         let hiddenIds = JSON.parse(localStorage.getItem('nbt_hidden_jobs') || '[]');
+        
+        // 控制每小时05分自动更新的定时器变量
+        let autoRefreshTimer;
 
         checkSession();
 
@@ -181,6 +188,9 @@
             document.getElementById('table-body').innerHTML = '';
             document.getElementById('password').value = '';
             globalData = [];
+            
+            // 登出时清除自动刷新定时器
+            if (autoRefreshTimer) clearTimeout(autoRefreshTimer);
         }
 
         function showDataSection(email) {
@@ -189,9 +199,36 @@
             document.getElementById('logout-btn').classList.remove('hidden');
             document.getElementById('user-status').textContent = `Logged in: ${email}`;
             document.getElementById('table-body').innerHTML = `<tr><td colspan="14" class="px-4 py-12 text-center text-blue-500 font-semibold">Fetching unique jobs data...</td></tr>`;
+            
+            // 登入后，启动精准定时排程（每个小时的05分自动更新）
+            scheduleNextUpdate();
         }
 
-        // 核心修改：以 JOBS 表为主表查询，确保每个 Job 只有唯一的一行
+        // 计算并排程到下一个小时的 05 分执行自动更新
+        function scheduleNextUpdate() {
+            if (autoRefreshTimer) clearTimeout(autoRefreshTimer);
+
+            const now = new Date();
+            let nextUpdate = new Date(now.getTime());
+            
+            // 设定目标时间为当前小时的 05 分 00 秒
+            nextUpdate.setMinutes(5, 0, 0);
+
+            // 如果现在已经过了当小时的 05 分，则将目标时间推迟到下一个小时的 05 分
+            if (now.getMinutes() >= 5) {
+                nextUpdate.setHours(now.getHours() + 1);
+            }
+
+            const delay = nextUpdate.getTime() - now.getTime();
+
+            // 设定倒计时，时间到时触发刷新并再次递归排程下一次
+            autoRefreshTimer = setTimeout(() => {
+                fetchFinalData();
+                scheduleNextUpdate();
+            }, delay);
+        }
+
+        // 以 JOBS 表为主表查询，确保每个 Job 只有唯一的一行
         async function fetchFinalData() {
             try {
                 const { data, error } = await mySupabase
@@ -223,7 +260,6 @@
 
                 if (error) throw error;
 
-                // 整理数据结构，确保每个 Job 对应一条记录，并自动匹配对应的运输商
                 globalData = (data || []).map(job => {
                     const bids = job.bids || [];
                     const winningBid = bids.find(b => b.status === 'accepted') || bids[0] || {};
@@ -248,6 +284,15 @@
                 });
 
                 applyFilters();
+
+                // 刷新成功后，更新“Last updated”显示的当前时间
+                const now = new Date();
+                const timeString = now.toLocaleTimeString('en-US', { hour12: true });
+                const lastUpdatedDisplay = document.getElementById('last-updated-display');
+                if (lastUpdatedDisplay) {
+                    lastUpdatedDisplay.textContent = `Last updated: ${timeString}`;
+                }
+
             } catch (err) {
                 console.error('Fetch data failed:', err);
                 document.getElementById('table-body').innerHTML = `
@@ -277,7 +322,6 @@
             applyFilters();
         }
 
-        // Ready to Pay 判定：job status 必须是 archived 并且 accepted_price 有有效数值
         function isReadyToPay(row) {
             const jobStatus = (row.status || '').toLowerCase();
             const hasPrice = row.accepted_price !== null && row.accepted_price !== undefined && row.accepted_price !== '' && Number(row.accepted_price) > 0;
