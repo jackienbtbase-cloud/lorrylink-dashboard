@@ -121,8 +121,9 @@
         let currentJobStatusFilter = 'all'; // 'all', 'archived', 'other'
         let hiddenIds = JSON.parse(localStorage.getItem('nbt_hidden_jobs') || '[]');
         
-        // 控制每小时05分自动更新的定时器变量
-        let autoRefreshTimer;
+        // ✨ 修改这里：控制防休眠定时器和状态的变量
+        let autoRefreshInterval;
+        let lastUpdatedHour = -1;
 
         checkSession();
 
@@ -189,8 +190,8 @@
             document.getElementById('password').value = '';
             globalData = [];
             
-            // 登出时清除自动刷新定时器
-            if (autoRefreshTimer) clearTimeout(autoRefreshTimer);
+            // ✨ 修改这里：登出时清除防休眠定时器
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
         }
 
         function showDataSection(email) {
@@ -200,32 +201,26 @@
             document.getElementById('user-status').textContent = `Logged in: ${email}`;
             document.getElementById('table-body').innerHTML = `<tr><td colspan="14" class="px-4 py-12 text-center text-blue-500 font-semibold">Fetching unique jobs data...</td></tr>`;
             
-            // 登入后，启动精准定时排程（每个小时的05分自动更新）
-            scheduleNextUpdate();
+            // ✨ 修改这里：登入后启动防休眠自动检查
+            startAutoRefresh();
         }
 
-        // 计算并排程到下一个小时的 05 分执行自动更新
-        function scheduleNextUpdate() {
-            if (autoRefreshTimer) clearTimeout(autoRefreshTimer);
-
-            const now = new Date();
-            let nextUpdate = new Date(now.getTime());
+        // ✨ 新增：防休眠的定时检查机制
+        function startAutoRefresh() {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
             
-            // 设定目标时间为当前小时的 05 分 00 秒
-            nextUpdate.setMinutes(5, 0, 0);
+            // 每 30 秒看一眼系统的真实时间
+            autoRefreshInterval = setInterval(() => {
+                const now = new Date();
+                const currentMinute = now.getMinutes();
+                const currentHour = now.getHours();
 
-            // 如果现在已经过了当小时的 05 分，则将目标时间推迟到下一个小时的 05 分
-            if (now.getMinutes() >= 5) {
-                nextUpdate.setHours(now.getHours() + 1);
-            }
-
-            const delay = nextUpdate.getTime() - now.getTime();
-
-            // 设定倒计时，时间到时触发刷新并再次递归排程下一次
-            autoRefreshTimer = setTimeout(() => {
-                fetchFinalData();
-                scheduleNextUpdate();
-            }, delay);
+                // 只要发现分针刚好指在 05 分，并且这个小时还没更新过，就立刻拉取新数据
+                if (currentMinute === 5 && currentHour !== lastUpdatedHour) {
+                    fetchFinalData();
+                    lastUpdatedHour = currentHour; 
+                }
+            }, 30000); 
         }
 
         // 以 JOBS 表为主表查询，确保每个 Job 只有唯一的一行
