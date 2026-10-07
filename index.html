@@ -45,8 +45,8 @@
                     <p class="text-xs text-blue-600 font-semibold uppercase">Total Visible Jobs (Click to Reset)</p>
                     <p id="stat-total" class="text-2xl font-bold text-blue-800">0</p>
                 </div>
-                <div onclick="setJobStatusFilter('archived')" id="card-archived" class="bg-white border border-green-200 p-4 rounded-lg cursor-pointer hover:bg-green-50 transition shadow-sm">
-                    <p class="text-xs text-green-600 font-semibold uppercase">Ready to Pay [Archived + Price] (Click)</p>
+               <div onclick="setJobStatusFilter('archived')" id="card-archived" class="bg-white border border-green-200 p-4 rounded-lg cursor-pointer hover:bg-green-50 transition shadow-sm">
+                    <p class="text-xs text-green-600 font-semibold uppercase">Ready to Pay [Has Accepted Price] (Click)</p>
                     <p id="stat-archived" class="text-2xl font-bold text-green-800">0</p>
                 </div>
                 <div onclick="setJobStatusFilter('other')" id="card-other" class="bg-white border border-gray-200 p-4 rounded-lg cursor-pointer hover:bg-gray-100 transition shadow-sm">
@@ -318,9 +318,8 @@
         }
 
         function isReadyToPay(row) {
-            const jobStatus = (row.status || '').toLowerCase();
             const hasPrice = row.accepted_price !== null && row.accepted_price !== undefined && row.accepted_price !== '' && Number(row.accepted_price) > 0;
-            return jobStatus === 'archived' && hasPrice;
+            return hasPrice;
         }
 
         function applyFilters() {
